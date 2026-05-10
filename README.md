@@ -20,7 +20,7 @@
 
 ### 2. Технический стек
 * **Backend:** Python 3.12, Flask, SQLAlchemy.
-* **ML Инференс:** ONNX Runtime, NumPy, Pillow.
+* **ML Инференс:** ONNX Runtime, NumPy, Pillow, Hugging Face.
 * **Database:** SQLite.
 * **Frontend:** HTML5 Canvas, CSS3 (Glassmorphism), JavaScript (Fetch API).
 
