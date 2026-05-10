@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+
+{% block title %}Neural Visualizer{% endblock %}
+
+{% block content %}
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <div class="container-glass">
+    <h1 class="title-main">Neural Visualizer</h1>
+    <p class="subtitle">Нарисуй цифру и посмотри, как нейросеть её распознает</p>
+    
+    <div class="canvas-wrapper">
+      <canvas id="drawing-canvas" width="280" height="280"></canvas>
+    </div>
+
+    <div class="buttons-container">
+      <button id="clear-btn" class="btn-custom btn-clear">Очистить</button>
+      <button id="recognize-btn" class="btn-custom btn-recognize">Распознать</button>
+    </div>
+
+    <div class="result-container" id="result-container" style="display: none;">
+      <div class="result-box">
+        <div class="result-label">Результат:</div>
+        <div class="result-digit" id="result">—</div>
+        <div class="result-confidence" id="confidence"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-glass history-section" style="margin-top: 30px;">
+    <h2 class="subtitle" style="font-weight: 700; color: #fff;">Последние распознавания</h2>
+    <div class="history-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 20px;">
+        {% for drawing in drawings %}
+        <div class="history-item" style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 10px; border: 1px solid rgba(255,255,255,0.1);">
+            <img src="{{ url_for('static', filename=drawing.image_path.replace('static/', '')) }}" 
+                 style="width: 100%; border-radius: 8px; background: #000; margin-bottom: 8px; border: 1px solid #3498db;">
+            <div style="font-size: 0.85em;">
+                <div style="color: #2ecc71; font-weight: bold;">Цифра: {{ drawing.prediction_result }}</div>
+                <div style="color: #bdc3c7; font-size: 0.8em;">{{ (drawing.confidence * 100)|round(1) }}%</div>
+            </div>
+        </div>
+        {% else %}
+        <p style="color: #7f8c8d; font-size: 0.9em;">История пока пуста</p>
+        {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d');
+    const resultContainer = document.getElementById('result-container');
+    const resultDigit = document.getElementById('result');
+    const confidenceDiv = document.getElementById('confidence');
+
+    // Черный фон
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Настройки кисти
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 18;
+    ctx.lineCap = 'round';
+
+    let drawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    canvas.addEventListener('mousedown', (e) => {
+      drawing = true;
+      canvas.classList.add('drawing');
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!drawing) return;
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      drawing = false;
+      canvas.classList.remove('drawing');
+    });
+
+    canvas.addEventListener('mouseout', () => {
+      drawing = false;
+      canvas.classList.remove('drawing');
+    });
+
+    // Touch support для мобильных
+    canvas.addEventListener('touchstart', (e) => {
+      drawing = true;
+      canvas.classList.add('drawing');
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      [lastX, lastY] = [touch.clientX - rect.left, touch.clientY - rect.top];
+    });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (!drawing) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+      ctx.stroke();
+      [lastX, lastY] = [touch.clientX - rect.left, touch.clientY - rect.top];
+    });
+
+    canvas.addEventListener('touchend', () => {
+      drawing = false;
+      canvas.classList.remove('drawing');
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      resultContainer.style.display = 'none';
+    });
+
+document.getElementById('recognize-btn').addEventListener('click', async () => {
+      const imageData = canvas.toDataURL('image/png');
+      try {
+        const response = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: imageData })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          
+          // Обновляем главный блок результата
+          resultDigit.textContent = result.prediction;
+          // Если бэкенд уже присылает проценты (0-100), убираем умножение на 100
+          const confValue = result.confidence > 1 ? result.confidence : result.confidence * 100;
+          confidenceDiv.textContent = `Уверенность: ${confValue.toFixed(1)}%`;
+          resultContainer.style.display = 'flex';
+
+          // --- ОБНОВЛЕНИЕ СЕТКИ ИСТОРИИ БЕЗ ПЕРЕЗАГРУЗКИ ---
+          const historyGrid = document.querySelector('.history-grid');
+          
+          const newItem = document.createElement('div');
+          newItem.className = 'history-item';
+          // Копируем стили из твоего шаблона
+          newItem.style = "background: rgba(255,255,255,0.05); border-radius: 12px; padding: 10px; border: 1px solid rgba(255,255,255,0.1); opacity: 0; transition: opacity 0.5s ease;";
+          
+          newItem.innerHTML = `
+            <img src="${imageData}" style="width: 100%; border-radius: 8px; background: #000; margin-bottom: 8px; border: 1px solid #3498db;">
+            <div style="font-size: 0.85em;">
+                <div style="color: #2ecc71; font-weight: bold;">Цифра: ${result.prediction}</div>
+                <div style="color: #bdc3c7; font-size: 0.8em;">${confValue.toFixed(1)}%</div>
+            </div>
+          `;
+          
+          // Удаляем надпись "История пуста", если она есть
+          const emptyMsg = historyGrid.querySelector('p');
+          if (emptyMsg) emptyMsg.remove();
+          
+          // Вставляем новую карточку в самое начало
+          historyGrid.prepend(newItem);
+          
+          // Небольшой хак для анимации появления
+          setTimeout(() => newItem.style.opacity = "1", 10);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    });
+  </script>
+{% endblock %}

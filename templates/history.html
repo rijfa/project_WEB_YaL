@@ -1,0 +1,24 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-5">
+    <h2 class="text-light mb-4">История ваших распознаваний</h2>
+    <div class="row">
+        {% for drawing in drawings %}
+        <div class="col-md-3 mb-4">
+            <div class="card bg-dark text-light border-info" style="backdrop-filter: blur(10px); background: rgba(255,255,255,0.05);">
+                <img src="{{ url_for('static', filename='uploads/' + drawing.image_path.split('/')[-1]) }}" class="card-img-top" alt="Drawing">
+                <div class="card-body">
+                    <h5 class="card-title">Результат: {{ drawing.prediction_result }}</h5>
+                    <p class="card-text">Уверенность: {{ (drawing.confidence * 100)|round(2) }}%</p>
+                    <p class="card-text"><small class="text-muted">{{ drawing.timestamp.strftime('%d.%m.%Y %H:%M') }}</small></p>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <p class="text-muted">Вы еще ничего не рисовали. Самое время начать!</p>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">На главную</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

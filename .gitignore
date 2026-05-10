@@ -1,0 +1,5 @@
+.venv-1/
+__pycache__/
+site.db
+static/uploads/*
+.env
